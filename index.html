@@ -504,10 +504,9 @@ function showAuth(){
     document.getElementById('out').onclick=function(){ sb.auth.signOut(); closeDrawer(); };
     return;
   }
-  dBody.innerHTML='<p class="st">سجّل دخولك لحفظ بياناتك وتسهيل الطلب.</p><button class="btn" id="gIn">المتابعة مع Google</button><button class="btn alt" id="aIn">المتابعة مع Apple</button><p class="st" id="authMsg" style="color:var(--danger)"></p>';
+  dBody.innerHTML='<p class="st">سجّل دخولك لحفظ بياناتك وتسهيل الطلب.</p><button class="btn" id="gIn">المتابعة مع Google</button><p class="st" id="authMsg" style="color:var(--danger)"></p>';
   dFoot.innerHTML='';
   document.getElementById('gIn').onclick=function(){ signIn('google'); };
-  document.getElementById('aIn').onclick=function(){ signIn('apple'); };
 }
 function signIn(kind){
   sb.auth.signInWithOAuth({provider:kind,options:{redirectTo:location.origin+location.pathname}}).then(function(r){
