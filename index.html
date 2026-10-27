@@ -110,6 +110,8 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--ink2);fo
 .pay button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px}
 .pay button[aria-pressed="true"]{border:2px solid var(--accent);font-weight:700}
 .note{background:color-mix(in srgb,var(--accent) 12%,var(--surface));border-radius:10px;padding:8px 12px;font-size:14px;margin-bottom:14px}
+.mform{background:#fff;color:#111;border-radius:12px;padding:12px;margin:10px 0}
+.own .line small{display:block}
 .paybox{border:1.5px dashed var(--accent);border-radius:12px;padding:12px 14px;margin:6px 0 14px}
 .prow{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
 .prow span{color:var(--ink2)}
@@ -120,6 +122,8 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--ink2);fo
 @media (prefers-reduced-motion:no-preference){.stage svg .gem{transition:fill .35s}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<link rel="stylesheet" href="https://cdn.moyasar.com/mpf/1.15.0/moyasar.css">
+<script src="https://cdn.moyasar.com/mpf/1.15.0/moyasar.js"></script>
 </head>
 <body>
 
@@ -175,12 +179,13 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--ink2);fo
 <script id="app">
 // ===== إعدادات المالك: عبّها مرة واحدة =====
 var SUPABASE_URL = "https://hgpiqvnjwkfnhncormah.supabase.co";
-var SUPABASE_KEY = "sb_publishable_Anv4hc5I915ZSYPVGgnAQQ_swSzp3i0";
+var SUPABASE_KEY = "";
 var ADMIN_EMAIL = "kingabdulelah1@gmail.com";
+var MOYASAR_PK = "";
 // ==========================================
 var user=null, sb=null, fbOk=false;
 function uname(u){ var m=(u&&u.user_metadata)||{}; return m.full_name||m.name||''; }
-var CURRENCY = '$';
+var CURRENCY = 'ر.س';
 var STONES = [
   {id:'h1',stone:'فيروز',color:'#1FB5B0',shape:'round'},
   {id:'h2',stone:'عقيق',color:'#B3282D',shape:'oval'},
@@ -205,7 +210,7 @@ cart = cart.filter(function(i){ return prod(i.id); });
 function persist(){ try{ localStorage.setItem('sws_cart', JSON.stringify(cart)); }catch(e){} }
 
 function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-function money(n){ return '<span class="ltr">'+CURRENCY+(Math.round(n*100)/100)+'</span>'; }
+function money(n){ return '<span>'+(Math.round(n*100)/100)+' ر.س</span>'; }
 function sizeList(p){ return String(p.sizes||'').split(/[,،]/).map(function(s){return s.trim();}).filter(Boolean); }
 
 function stoneShape(shape,fill,stroke){
@@ -340,66 +345,87 @@ function setErr(id,msg){
   f.classList.toggle('bad',!!msg); f.querySelector('.err').textContent=msg||'';
   return !msg;
 }
-function hasPay(){ return !!(state.pay && state.pay.account); }
+var MF_ORDER=null;
 function showCheckout(){
-  dTitle.textContent='الدفع';
-  if(!hasPay()){
-    dBody.innerHTML='<div class="empty"><b>الدفع غير متاح الآن</b><p>صاحب المتجر لم يضف بيانات استلام الدفع بعد.</p></div>';
-    dFoot.innerHTML='<button class="btn alt" id="back">رجوع للسلة</button>';
-    document.getElementById('back').onclick=showCart; return;
-  }
-  var p=state.pay;
+  dTitle.textContent='بيانات التوصيل';
   dBody.innerHTML=
   '<div class="f" id="f-name"><label for="name">الاسم الكامل</label><input id="name" autocomplete="name"><div class="err"></div></div>'+
   '<div class="f" id="f-phone"><label for="phone">رقم الجوال</label><input id="phone" type="tel" inputmode="tel" autocomplete="tel" class="ltr"><div class="err"></div></div>'+
   '<div class="f" id="f-addr"><label for="addr">عنوان التوصيل</label><input id="addr" autocomplete="street-address"><div class="err"></div></div>'+
-  '<div class="paybox"><b>حوّل المبلغ إلى</b>'+
-  '<div class="prow"><span>المبلغ</span><b>'+money(total())+'</b></div>'+
-  (p.method?'<div class="prow"><span>الطريقة</span><b>'+esc(p.method)+'</b></div>':'')+
-  (p.holder?'<div class="prow"><span>الاسم</span><b>'+esc(p.holder)+'</b></div>':'')+
-  '<div class="prow"><span>الرقم</span><b class="ltr" id="acc">'+esc(p.account)+'</b></div>'+
-  '<button class="btn alt" id="copyAcc" style="margin-top:6px">نسخ الرقم</button>'+
-  (p.note?'<p class="st" style="margin:8px 0 0">'+esc(p.note)+'</p>':'')+'</div>'+
-  '<div class="f" id="f-ref"><label for="ref">اسم المحوِّل أو رقم العملية</label><input id="ref"><div class="err"></div></div>';
-  dFoot.innerHTML='<div class="total"><span>المجموع</span><span>'+money(total())+'</span></div><button class="btn" id="pay">تم التحويل، أرسل الطلب</button><button class="btn alt" id="back">رجوع للسلة</button>';
+  '<p class="st" id="payErr" style="color:var(--danger)"></p>';
+  dFoot.innerHTML='<div class="total"><span>المجموع</span><span>'+money(total())+'</span></div><button class="btn" id="go2">المتابعة إلى الدفع</button><button class="btn alt" id="back">رجوع للسلة</button>';
   document.getElementById('back').onclick=showCart;
-  document.getElementById('copyAcc').onclick=function(){
-    var t=p.account, b=this;
-    try{ navigator.clipboard.writeText(t).then(function(){ b.textContent='تم النسخ'; }); }catch(e){ b.textContent='انسخ الرقم يدوياً'; }
-  };
-  document.getElementById('pay').onclick=submitOrder;
   if(user&&uname(user)){ document.getElementById('name').value=uname(user); }
+  document.getElementById('go2').onclick=function(){
+    var v=function(id){return document.getElementById(id).value.trim();};
+    var ok=true;
+    ok=setErr('name', v('name').length<3?'اكتب اسمك الكامل':'')&&ok;
+    ok=setErr('phone', v('phone').replace(/\D/g,'').length<8?'اكتب رقم جوال صحيح':'')&&ok;
+    ok=setErr('addr', v('addr').length<5?'اكتب عنوان التوصيل':'')&&ok;
+    if(ok) startPay({name:v('name'),phone:v('phone'),addr:v('addr')});
+  };
 }
-function submitOrder(){
-  var v=function(id){return document.getElementById(id).value.trim();};
-  var ok=true;
-  ok=setErr('name', v('name').length<3?'اكتب اسمك الكامل':'')&&ok;
-  ok=setErr('phone', v('phone').replace(/\D/g,'').length<8?'اكتب رقم جوال صحيح':'')&&ok;
-  ok=setErr('addr', v('addr').length<5?'اكتب عنوان التوصيل':'')&&ok;
-  ok=setErr('ref', v('ref').length<2?'اكتب اسم المحوِّل أو رقم العملية':'')&&ok;
-  if(!ok) return;
-  finish({name:v('name'),phone:v('phone'),addr:v('addr'),ref:v('ref')});
+function startPay(info){
+  var btn=document.getElementById('go2'); btn.disabled=true; btn.textContent='جارٍ تجهيز الطلب…';
+  var id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():null;
+  var num='SWS-'+Math.floor(10000+Math.random()*89999), amt=total();
+  var items=cart.map(function(i){return {id:i.id,size:i.size,qty:i.qty};});
+  function fail(){ btn.disabled=false; btn.textContent='المتابعة إلى الدفع'; document.getElementById('payErr').textContent='تعذر تجهيز الطلب. حاول مرة ثانية.'; }
+  if(!id||!sb){ fail(); return; }
+  sb.from('orders').insert({id:id,num:num,name:info.name,phone:info.phone,address:info.addr,items:items,total:amt,status:'pending'}).then(function(r){
+    if(r&&r.error){ fail(); return; }
+    MF_ORDER={id:id,num:num,name:info.name,total:amt};
+    try{ localStorage.setItem('sws_pending',JSON.stringify(MF_ORDER)); }catch(e){}
+    showPayForm();
+  },fail);
 }
-function finish(o){
-  var num='SWS-'+Math.floor(10000+Math.random()*89999);
-  var amt=total();
-  var lines=cart.map(function(i){var p=prod(i.id);return '- '+p.name+(i.size?' (المقاس '+i.size+')':'')+' × '+i.qty+' = '+CURRENCY+(Math.round(p.price*i.qty*100)/100);});
-  var text='طلب جديد من Selver with stone\nرقم الطلب: '+num+'\nالاسم: '+o.name+'\nالجوال: '+o.phone+'\nالعنوان: '+o.addr+'\n\n'+lines.join('\n')+'\n\nالمجموع: '+CURRENCY+(Math.round(amt*100)/100)+'\nبيانات التحويل: '+o.ref;
-  cart=[]; persist(); updateCount();
-  dTitle.textContent='تم الطلب';
-  var wa=(state.wa||'').replace(/\D/g,'');
-  var send=wa?'<a class="btn" style="display:block;text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/'+wa+'?text='+encodeURIComponent(text)+'">أرسل الطلب عبر واتساب</a><p class="st">اضغط الزر ليصل طلبك لصاحب المتجر.</p>'
-    :'<p class="st">انسخ تفاصيل الطلب وأرسلها لصاحب المتجر.</p><textarea readonly rows="8" style="width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px" id="otext">'+esc(text)+'</textarea>';
-  dBody.innerHTML='<div class="done"><div class="ck">✓</div><h3>شكراً '+esc(o.name.split(' ')[0])+'</h3><p>رقم الطلب: <b class="ltr">'+num+'</b></p><p>المجموع: '+money(amt)+'</p>'+send+'</div>';
-  dFoot.innerHTML='<button class="btn alt" id="fin">متابعة التسوق</button>';
-  document.getElementById('fin').onclick=closeDrawer;
+function showPayForm(){
+  dTitle.textContent='الدفع';
+  dFoot.innerHTML='<button class="btn alt" id="back2">رجوع</button>';
+  document.getElementById('back2').onclick=showCheckout;
+  if(!MOYASAR_PK||!window.Moyasar){ dBody.innerHTML='<div class="empty"><b>الدفع غير مفعّل بعد</b><p>صاحب المتجر لم يربط بوابة الدفع بعد.</p></div>'; return; }
+  dBody.innerHTML='<p class="st">الطلب <b class="ltr">'+esc(MF_ORDER.num)+'</b> · المبلغ '+money(MF_ORDER.total)+'</p><div class="mform"><div class="mysr-form"></div></div><p class="st">الدفع يتم عبر بوابة ميسر الآمنة، ولا نحتفظ ببيانات بطاقتك.</p>';
+  Moyasar.init({
+    element:'.mysr-form',
+    amount:Math.round(MF_ORDER.total*100),
+    currency:'SAR',
+    description:'طلب '+MF_ORDER.num,
+    publishable_api_key:MOYASAR_PK,
+    callback_url:location.origin+location.pathname,
+    methods:['creditcard','stcpay'],
+    supported_networks:['mada','visa','mastercard'],
+    metadata:{order_id:MF_ORDER.id}
+  });
+}
+function handleReturn(){
+  var q=new URLSearchParams(location.search), pid=q.get('id'), st=q.get('status'), msg=q.get('message');
+  if(!pid||!st) return;
+  try{ history.replaceState(null,'',location.pathname+location.hash); }catch(e){}
+  var pend={}; try{ pend=JSON.parse(localStorage.getItem('sws_pending')||'{}'); }catch(e){}
+  drawer.classList.add('on'); scrim.classList.add('on'); dTitle.textContent='الدفع'; dFoot.innerHTML='';
+  function end(ok,html){
+    dTitle.textContent=ok?'تم الدفع':'لم يكتمل الدفع';
+    dBody.innerHTML=html;
+    dFoot.innerHTML='<button class="btn" id="fin">متابعة التسوق</button>';
+    document.getElementById('fin').onclick=closeDrawer;
+  }
+  if(st!=='paid'){ end(false,'<div class="empty"><b>لم تتم عملية الدفع</b><p>'+esc(msg||'حاول مرة ثانية أو استخدم بطاقة أخرى.')+'</p></div>'); return; }
+  dBody.innerHTML='<div class="empty"><b>جارٍ التأكد من الدفع…</b></div>';
+  sb.functions.invoke('confirm-payment',{body:{payment_id:pid}}).then(function(r){
+    if(r&&r.data&&r.data.ok){
+      cart=[]; persist(); updateCount(); try{ localStorage.removeItem('sws_pending'); }catch(e){}
+      end(true,'<div class="done"><div class="ck">✓</div><h3>شكراً'+(pend.name?' '+esc(String(pend.name).split(' ')[0]):'')+'</h3><p>تم استلام دفعتك وتأكيد طلبك.</p>'+(pend.num?'<p>رقم الطلب: <b class="ltr">'+esc(pend.num)+'</b></p>':'')+'</div>');
+    } else {
+      end(false,'<div class="empty"><b>تعذر التأكد من الدفع</b><p>إذا تم الخصم من بطاقتك تواصل معنا وأرسل رقم الطلب'+(pend.num?' ('+esc(pend.num)+')':'')+'.</p></div>');
+    }
+  });
 }
 
 function cloud(btn,label,p){
   if(btn){ btn.disabled=true; btn.textContent='جارٍ الحفظ…'; }
   return p.then(function(r){ if(r&&r.error) throw r.error; return loadData(); })
    .then(function(){ renderOwner(); ownerMsg('تم الحفظ.',false); })
-   .catch(function(){ if(btn){ btn.disabled=false; btn.textContent=label; } ownerMsg('تعذر الحفظ. تأكد أنك مسجل بحساب الأدمن.',true); });
+   .catch(function(e){ if(btn){ btn.disabled=false; btn.textContent=label; } ownerMsg('تعذر الحفظ: '+((e&&e.message)||'خطأ غير معروف'),true); });
 }
 function loadData(){
   return Promise.all([
@@ -407,7 +433,7 @@ function loadData(){
     sb.from('settings').select('*').eq('id',1).maybeSingle()
   ]).then(function(r){
     state.custom=(r[0].data||[]).map(function(x){ x.desc=x.descr; x.price=+x.price; x.custom=true; return x; });
-    var st=r[1].data||{}; state.pay=st.pay||{}; state.cur=st.cur||'$'; state.wa=st.wa||''; CURRENCY=state.cur;
+    var st=r[1].data||{}; state.pay=st.pay||{}; state.cur=st.cur||'$'; state.wa=st.wa||'';
     cart=cart.filter(function(i){return prod(i.id);}); persist(); updateCount(); renderGrid();
     if(isOwner) renderOwner();
   }).catch(function(){});
@@ -461,40 +487,23 @@ function renderOwner(){
     if(!ok) return;
     cloud(document.getElementById('pub'),'حفظ المنتج',sb.from('products').insert({kind:kind,name:v('pn'),descr:v('pd'),sizes:v('ps'),price:price,img:img}));
   };
-  renderPaySettings(box);
+  renderOrders(box);
 }
 
-function renderPaySettings(box){
-  var p=state.pay||{};
-  box.insertAdjacentHTML('beforeend',
-  '<div class="own"><h2>بيانات استلام الدفع</h2><p class="hint">هذه البيانات تظهر للزبون عند الدفع ليحوّل المبلغ لك. اكتب ما تريد أن يراه الزبون فقط.</p>'+
-  '<div class="f" id="f-sm"><label for="sm">طريقة التحويل</label><input id="sm" placeholder="مثال: تطبيق بنكك أو محفظة"><div class="err"></div></div>'+
-  '<div class="f" id="f-sh"><label for="sh">اسم صاحب الحساب</label><input id="sh"><div class="err"></div></div>'+
-  '<div class="f" id="f-sa"><label for="sa">رقم الحساب أو المحفظة</label><input id="sa" inputmode="numeric" class="ltr"><div class="err"></div></div>'+
-  '<div class="f" id="f-sn"><label for="sn">ملاحظة للزبون (اختياري)</label><input id="sn" placeholder="مثال: اكتب رقم الطلب في خانة الملاحظات"><div class="err"></div></div>'+
-  '<div class="two"><div class="f" id="f-sc"><label for="sc">رمز العملة</label><input id="sc" maxlength="6" placeholder="$ أو ج.س"><div class="err"></div></div>'+
-  '<div class="f" id="f-sw"><label for="sw">واتساب لاستلام الطلبات</label><input id="sw" inputmode="tel" class="ltr" placeholder="249912345678"><div class="err"></div></div></div>'+
-  '<button class="btn" id="savePay">حفظ بيانات الدفع</button><div class="msg" role="status"></div></div>');
-  document.getElementById('sm').value=p.method||'';
-  document.getElementById('sh').value=p.holder||'';
-  document.getElementById('sa').value=p.account||'';
-  document.getElementById('sn').value=p.note||'';
-  document.getElementById('sc').value=state.cur||'$';
-  document.getElementById('sw').value=state.wa||'';
-  document.getElementById('savePay').onclick=function(){
-    var v=function(id){return document.getElementById(id).value.trim();};
-    var wa=v('sw').replace(/\D/g,'');
-    var ok=true;
-    ok=setErr('sm', v('sm')?'':'اكتب طريقة التحويل')&&ok;
-    ok=setErr('sa', v('sa').length<4?'اكتب رقم الحساب أو المحفظة':'')&&ok;
-    ok=setErr('sc', v('sc')?'':'اكتب رمز العملة')&&ok;
-    ok=setErr('sw', (!wa||wa.length>=8)?'':'اكتب الرقم مع رمز الدولة')&&ok;
-    if(!ok) return;
-    cloud(document.getElementById('savePay'),'حفظ بيانات الدفع',sb.from('settings').upsert({id:1,pay:{method:v('sm'),holder:v('sh'),account:v('sa'),note:v('sn')},cur:v('sc'),wa:wa}));
-  };
+function renderOrders(box){
+  box.insertAdjacentHTML('beforeend','<div class="own"><h2>الطلبات</h2><p class="hint">آخر 30 طلب. المدفوع تم التأكد منه من ميسر.</p><div id="ordList" class="st">جارٍ التحميل…</div><button class="btn alt" id="refOrd">تحديث</button></div>');
+  document.getElementById('refOrd').onclick=function(){ renderOwner(); };
+  sb.from('orders').select('*').order('created_at',{ascending:false}).limit(30).then(function(r){
+    var l=document.getElementById('ordList'); if(!l) return;
+    if(r.error){ l.textContent='تعذر تحميل الطلبات.'; return; }
+    var d=r.data||[]; if(!d.length){ l.textContent='لا توجد طلبات بعد.'; return; }
+    l.innerHTML=d.map(function(o){
+      var its=(o.items||[]).map(function(i){ var p=prod(i.id); return esc(p?p.name:'منتج محذوف')+(i.size?' ('+esc(i.size)+')':'')+' ×'+i.qty; }).join('، ');
+      var paid=o.status==='paid';
+      return '<div class="line" style="grid-template-columns:1fr"><div><b>'+esc(o.num)+' — '+esc(o.name)+'</b><small class="ltr">'+esc(o.phone)+'</small><small>'+esc(o.address)+'</small><small>'+its+'</small><div>'+money(+o.total)+' · <b style="color:'+(paid?'var(--ok)':'var(--danger)')+'">'+(paid?'مدفوع':'بانتظار الدفع')+'</b></div></div></div>';
+    }).join('');
+  });
 }
-renderHero(); renderChips(); renderGrid(); renderOwner(); updateCount();
-
 function showAuth(){
   dTitle.textContent='الحساب';
   if(!fbOk){ dBody.innerHTML='<div class="empty"><b>تسجيل الدخول غير مفعّل بعد</b><p>لم يتم ربط الموقع بخدمة الحسابات.</p></div>'; dFoot.innerHTML=''; return; }
@@ -529,6 +538,7 @@ document.getElementById('authBtn').onclick=function(){ drawer.classList.add('on'
     renderGrid(); renderOwner();
     if(drawer.classList.contains('on')&&dTitle.textContent==='الحساب') showAuth();
   });
+  handleReturn();
 })();
 </script>
 </body>
