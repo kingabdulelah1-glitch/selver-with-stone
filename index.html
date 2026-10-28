@@ -71,7 +71,7 @@ select.size{border:1px solid var(--line);background:var(--bg);border-radius:8px;
 .own{background:var(--surface);border:2px solid var(--accent);border-radius:18px;padding:18px;margin:34px 0}
 .own h2{font-family:var(--display);font-size:26px;margin:0 0 4px}
 .own .hint{color:var(--ink2);font-size:15px;margin:0 0 14px}
-.own .kinds{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.own .kinds{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
 .own .kinds button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px}
 .own .kinds button[aria-pressed="true"]{border:2px solid var(--accent);font-weight:700}
 .own .prev{width:100%;max-width:240px;aspect-ratio:1/1;object-fit:cover;border-radius:12px;display:none;margin-top:8px;border:1px solid var(--line)}
@@ -112,6 +112,12 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--ink2);fo
 .note{background:color-mix(in srgb,var(--accent) 12%,var(--surface));border-radius:10px;padding:8px 12px;font-size:14px;margin-bottom:14px}
 .mform{background:#fff;color:#111;border-radius:12px;padding:12px;margin:10px 0}
 .own .line small{display:block}
+.cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:6px 0 4px}
+.cat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 8px;text-align:center}
+.cat b{display:block;font-family:var(--display);font-size:20px;line-height:1.3}
+.cat span{color:var(--ink2);font-size:14px}
+.cat[aria-pressed="true"]{border:2px solid var(--accent)}
+.cart-btn.ord{background:var(--accent);color:var(--on-accent);padding:8px 12px}
 .paybox{border:1.5px dashed var(--accent);border-radius:12px;padding:12px 14px;margin:6px 0 14px}
 .prow{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
 .prow span{color:var(--ink2)}
@@ -130,7 +136,7 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--ink2);fo
 <header class="top">
   <div class="wrap">
     <div class="brand">Selver with stone</div>
-    <div style="display:flex;gap:8px"><button class="cart-btn alt" id="authBtn">دخول</button><button class="cart-btn" id="openCart" aria-label="فتح السلة">السلة <span class="n" id="cnt">0</span></button></div>
+    <div style="display:flex;gap:8px"><button class="cart-btn ord" id="ordBtn" style="display:none">الطلبات</button><button class="cart-btn alt" id="authBtn">دخول</button><button class="cart-btn" id="openCart" aria-label="فتح السلة">السلة <span class="n" id="cnt">0</span></button></div>
   </div>
 </header>
 
@@ -147,6 +153,8 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--ink2);fo
       <div class="swatches" id="swatches" role="group" aria-label="اختر لون الحجر"></div>
     </div>
   </section>
+
+  <section class="cats" id="cats" aria-label="الأقسام"></section>
 
   <section id="products">
     <div class="sec-h">
@@ -179,7 +187,7 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--ink2);fo
 <script id="app">
 // ===== إعدادات المالك: عبّها مرة واحدة =====
 var SUPABASE_URL = "https://hgpiqvnjwkfnhncormah.supabase.co";
-var SUPABASE_KEY = "sb_publishable_Anv4hc5I915ZSYPVGgnAQQ_swSzp3i0";
+var SUPABASE_KEY = "";
 var ADMIN_EMAIL = "kingabdulelah1@gmail.com";
 var MOYASAR_PK = "";
 // ==========================================
@@ -198,8 +206,8 @@ var state = {custom:[],pay:{},cur:'$',wa:''};
 try { var parsed = JSON.parse(document.getElementById('data').textContent); if(parsed && Array.isArray(parsed.custom)){ state = parsed; state.pay=state.pay||{}; state.cur=state.cur||'$'; state.wa=state.wa||''; } } catch(e){}
 var isOwner = false;
 CURRENCY = state.cur||'$';
-var KINDS = [{k:'all',l:'الكل'},{k:'ring',l:'خواتم'},{k:'sabha',l:'سبح'}];
-var KIND_LABEL = {ring:'خاتم',sabha:'سبحة'};
+var KINDS = [{k:'all',l:'الكل'},{k:'ring',l:'خواتم'},{k:'sabha',l:'سبح'},{k:'stone',l:'أحجار'}];
+var KIND_LABEL = {ring:'خاتم',sabha:'سبحة',stone:'حجر'};
 
 function allProducts(){ return state.custom.slice(); }
 function prod(id){ return allProducts().filter(function(p){return p.id===id;})[0]; }
@@ -258,7 +266,22 @@ function renderChips(){
     c.appendChild(b);
   });
 }
+function renderCats(){
+  var c=document.getElementById('cats'); if(!c) return; c.innerHTML='';
+  KINDS.filter(function(k){return k.k!=='all';}).forEach(function(t){
+    var n=allProducts().filter(function(p){return p.kind===t.k;}).length;
+    var b=document.createElement('button'); b.className='cat';
+    b.setAttribute('aria-pressed', kindFilter===t.k);
+    b.innerHTML='<b>'+t.l+'</b><span>'+n+' منتج</span>';
+    b.onclick=function(){
+      kindFilter=(kindFilter===t.k)?'all':t.k; renderChips(); renderGrid();
+      document.getElementById('products').scrollIntoView({behavior:'smooth'});
+    };
+    c.appendChild(b);
+  });
+}
 function renderGrid(){
+  renderCats();
   var g=document.getElementById('grid'); g.innerHTML='';
   var list=allProducts().filter(function(p){return kindFilter==='all'||p.kind===kindFilter;});
   if(!list.length){ g.innerHTML='<p class="st" style="grid-column:1/-1">لا توجد منتجات في هذا القسم بعد.</p>'; return; }
@@ -460,16 +483,16 @@ function renderOwner(){
   var kind='ring', img=null;
   box.innerHTML=
   '<div class="own"><h2>إضافة منتج جديد</h2><p class="hint">هذا القسم يظهر لك أنت فقط بصفتك أدمن. المنتج يظهر للجميع فوراً بعد الحفظ.</p>'+
-  '<div class="kinds" role="group" aria-label="نوع المنتج"><button id="k-ring" aria-pressed="true">خاتم</button><button id="k-sabha" aria-pressed="false">سبحة</button></div>'+
+  '<div class="kinds" role="group" aria-label="نوع المنتج"><button id="k-ring" aria-pressed="true">خاتم</button><button id="k-sabha" aria-pressed="false">سبحة</button><button id="k-stone" aria-pressed="false">حجر</button></div>'+
   '<div class="f" id="f-ph"><label for="ph">الصورة</label><input type="file" id="ph" accept="image/*"><img class="prev" id="prev" alt="معاينة الصورة"><div class="err"></div></div>'+
   '<div class="f" id="f-pn"><label for="pn">اسم المنتج</label><input id="pn"><div class="err"></div></div>'+
   '<div class="f" id="f-pd"><label for="pd">الوصف</label><textarea id="pd" rows="3"></textarea><div class="err"></div></div>'+
   '<div class="f" id="f-ps"><label for="ps">المقاس</label><input id="ps" placeholder="مثال: 7، 8، 9 أو 33 حبة"><div class="err"></div></div>'+
   '<div class="f" id="f-pp"><label for="pp">السعر ('+CURRENCY+')</label><input id="pp" inputmode="decimal" class="ltr"><div class="err"></div></div>'+
   '<button class="btn" id="pub">حفظ المنتج</button><div class="msg" id="ownMsg" role="status"></div></div>';
-  var kr=document.getElementById('k-ring'), ks=document.getElementById('k-sabha');
-  function setKind(k){ kind=k; kr.setAttribute('aria-pressed',k==='ring'); ks.setAttribute('aria-pressed',k==='sabha'); document.getElementById('ps').placeholder=k==='ring'?'مثال: 7، 8، 9':'مثال: 33 حبة أو طول 20 سم'; }
-  kr.onclick=function(){setKind('ring');}; ks.onclick=function(){setKind('sabha');};
+  var kr=document.getElementById('k-ring'), ks=document.getElementById('k-sabha'), kt=document.getElementById('k-stone');
+  function setKind(k){ kind=k; kr.setAttribute('aria-pressed',k==='ring'); ks.setAttribute('aria-pressed',k==='sabha'); kt.setAttribute('aria-pressed',k==='stone'); document.getElementById('ps').placeholder=k==='ring'?'مثال: 7، 8، 9':(k==='sabha'?'مثال: 33 حبة أو طول 20 سم':'مثال: 5 جرام أو 12 ملم'); }
+  kr.onclick=function(){setKind('ring');}; ks.onclick=function(){setKind('sabha');}; kt.onclick=function(){setKind('stone');};
   document.getElementById('ph').onchange=function(e){
     var f=e.target.files[0]; if(!f) return;
     compress(f).then(function(d){ img=d; var p=document.getElementById('prev'); p.src=d; p.style.display='block'; setErr('ph',''); })
@@ -491,7 +514,7 @@ function renderOwner(){
 }
 
 function renderOrders(box){
-  box.insertAdjacentHTML('beforeend','<div class="own"><h2>الطلبات</h2><p class="hint">آخر 30 طلب. المدفوع تم التأكد منه من ميسر.</p><div id="ordList" class="st">جارٍ التحميل…</div><button class="btn alt" id="refOrd">تحديث</button></div>');
+  box.insertAdjacentHTML('beforeend','<div class="own" id="ordersBox"><h2>الطلبات</h2><p class="hint">آخر 30 طلب. المدفوع تم التأكد منه من ميسر.</p><div id="ordList" class="st">جارٍ التحميل…</div><button class="btn alt" id="refOrd">تحديث</button></div>');
   document.getElementById('refOrd').onclick=function(){ renderOwner(); };
   sb.from('orders').select('*').order('created_at',{ascending:false}).limit(30).then(function(r){
     var l=document.getElementById('ordList'); if(!l) return;
@@ -522,6 +545,7 @@ function signIn(kind){
     if(r&&r.error){ var m=document.getElementById('authMsg'); if(m) m.textContent='تعذر تسجيل الدخول. حاول مرة ثانية.'; }
   });
 }
+document.getElementById('ordBtn').onclick=function(){ var o=document.getElementById('ordersBox'); if(o) o.scrollIntoView({behavior:'smooth'}); };
 document.getElementById('authBtn').onclick=function(){ drawer.classList.add('on'); scrim.classList.add('on'); showAuth(); };
 
 (function(){
@@ -535,6 +559,7 @@ document.getElementById('authBtn').onclick=function(){ drawer.classList.add('on'
     var u=session?session.user:null; user=u;
     isOwner=!!(u&&u.email&&ADMIN_EMAIL&&u.email.toLowerCase()===ADMIN_EMAIL.toLowerCase());
     document.getElementById('authBtn').textContent=u?'حسابي':'دخول';
+    document.getElementById('ordBtn').style.display=isOwner?'':'none';
     renderGrid(); renderOwner();
     if(drawer.classList.contains('on')&&dTitle.textContent==='الحساب') showAuth();
   });
